@@ -1,0 +1,72 @@
+---
+title: "network2adj"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{network2adj}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(network2adj)
+```
+
+# Introduction
+
+The package comprises some functions which, from a regulatory network and a gene 
+expression matrix obtained by RNA-Seq data and a list of regulator genes, 
+creates an .adj file needed by the package VIPER to create the regulon object.
+
+## Get the data frame from the network obtained by the network reconstruction with ARACNe
+
+```{r}
+data(network)
+net_df <- getDf(network)
+```
+
+## Get the gene symbols corresponding to the gene Ensembl IDs in the data frame
+
+```{r}
+data(network_df)
+gene_symbols <- getGeneSymbols(network_df, organism = "hsapiens")
+head(gene_symbols)
+```
+
+## Convert the row names of the data frame with the gene symbols
+
+```{r}
+converted_df <- getGeneSymbolDataframe(network_df, gene_symbols, 
+                                       organism = "hsapiens")
+head(converted_df)
+```
+
+## Convert the row names of the expression matrix with the gene symbols
+
+```{r}
+data(vsd_matrix)
+converted_matrix <- getGeneSymbolMatrix(vsd_matrix, gene_symbols, 
+                                        organism = "hsapiens")
+```
+
+## Extract from the data frame of regulators the list of the gene symbols and add the genes for which we want to compute the activity with VIPER. Then, filter the data frame obtained by the network to consider only the regulators of ADAR and, for each regulator, obtain a list of their interactors and the corresponding scores
+
+```{r}
+data(regulators_list)
+genes <- c("ADAR", "ADARB1")
+interactors <- getInteractorsList(dataf = converted_df, 
+                                  reg_list =  regulators_list, 
+                                  target_genes = genes)
+```
+
+## Get the adjacency matrix file as requested by VIPER
+
+```{r}
+writeAdjFile(interactors, file_name = "interactors")
+```

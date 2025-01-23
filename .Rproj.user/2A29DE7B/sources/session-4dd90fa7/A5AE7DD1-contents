@@ -1,0 +1,182 @@
+vsd_matrix <- read.table("C:/Users/franc/OneDrive/Desktop/Tirocinio/hs1/vsd_hs1.txt",
+                         header = T, row.names = 1, sep = "\t")
+
+vsd_matrix <- vsd_matrix[c(1:98, "ADAR", "ADARB1"), ]
+save(vsd_matrix, file = "C:/Users/franc/OneDrive/Desktop/Tirocinio/network2adj/data/vsd_matrix.rda", compress = "xz")
+
+network <- readRDS("C:/Users/franc/OneDrive/Desktop/Tirocinio/hs1/network.RDS")
+head(network)
+network <- network[c(1:47, 7846, 11653, 11008), c(1:47, 7846, 11653, 11008)]
+
+save(network, file = "C:/Users/franc/OneDrive/Desktop/Tirocinio/network2adj/data/network.rda")
+regulators_list <- read.table("C:/Users/franc/OneDrive/Desktop/Tirocinio/regulators-list.txt", header = T)
+regulators_list <- head(regulators_list)
+regulators_list <- (regulators_list[, 3])
+regulators_list <- c(regulators_list, "ADAR", "ADARB1", "ADARB2")
+
+load("C:/Users/franc/OneDrive/Documenti/net.rda")
+
+data("regulators_list")
+?getInteractorsList
+
+save(regulators_list, file = "C:/Users/franc/OneDrive/Documenti/network2activity/data/regulators_list.rda", compress = "xz")
+
+
+rownames(network)
+colnames(network)
+
+regul_A549_cells <- readRDS("C:/Users/franc/OneDrive/Desktop/Tirocinio/regulons/regulon_A549_cells.rds")
+save(regul_A549_cells, file = "C:/Users/franc/OneDrive/Desktop/Tirocinio/network2adj/data/regul_A549_cells.rda")
+regul_A549_cells <- regul_A549_cells[c("ADAR", "ADARB1")]
+
+regulators_of_interest <- c("ADAR", "ADARB1")
+
+regul_A549_cells_red <- regul_A549_cells[names(regul_A549_cells) %in% regulators_of_interest]
+str(regul_A549_cells_red)
+
+class(regul_A549_cells_red) <- "regulon"
+library(viper)
+viper(vsd_matrix, regul_hESC_neurons_red, minsize = 5)
+str(vsd_matrix)
+
+regul_A549_cells_red <- lapply(regul_A549_cells_red, function(x) {
+  x$tfmode <- as.numeric(x$tfmode)
+  x$likelihood <- as.numeric(x$likelihood)
+  return(x)
+})
+
+vsd_matrix["ADARB1",]
+?viper
+
+save(regul_hESC_neurons, file = "C:/Users/franc/OneDrive/Documenti/network2activity/data/regul_hESC_neurons.rda")
+load("network_df.rda")
+network_df <- df
+save(network_df, file = "C:/Users/franc/OneDrive/Documenti/network2activity/data/network_df.rda")
+
+
+regul_hESC_neurons <- readRDS("C:/Users/franc/OneDrive/Desktop/Tirocinio/regulons/regulon_hesc_neurons.rds")
+regul_hESC_neurons <- regul_hESC_neurons[c("ADAR", "ADARB1", "ADARB2")]
+save(regul_interferon_specific, file = "C:/Users/franc/OneDrive/Desktop/Tirocinio/network2adj/data/regul_interferon_specific.rda")
+
+regul_interferon_specific <- readRDS("C:/Users/franc/OneDrive/Desktop/Tirocinio/regulons/regulon_interferon_specific.rds")
+regul_interferon_specific <- regul_interferon_specific[c("ADAR", "ADARB1")]
+save(regul_interferon_specific, file = "regul_interferon_specific.rda")
+str(regul_interferon_specific)
+
+regul_interferon_specific <- lapply(regul_interferon_specific, function(x) {
+  x$tfmode <- as.numeric(x$tfmode)
+  x$likelihood <- as.numeric(x$likelihood)
+  x
+})
+
+save(regul_interferon_specific, file = "C:/Users/franc/OneDrive/Desktop/Tirocinio/network2adj/data/regul_interferon_specific.rda")
+
+regul_interferon_specific <- regul_interferon_specific[c("ADAR", "ADARB1")]
+class(regul_interferon_specific) <- "regulon"
+library(viper)
+
+save(regul_A549_cells, file = "C:/Users/franc/OneDrive/Documenti/network2activity/data/regul_A549_cells.rda")
+save(regul_hESC_neurons, file = "C:/Users/franc/OneDrive/Documenti/network2activity/data/regul_hESC_neurons.rda")
+save(regul_interferon_specific, file = "C:/Users/franc/OneDrive/Documenti/network2activity/data/regul_interferon_specific.rda")
+
+BiocManager::install("org.Hs.eg.db")
+library(ggprofiler2)
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+
+enid <- as.vector(rownames(network))
+
+gene_symbols <- AnnotationDbi::select(org.Hs.eg.db, keys=enid,
+                                      columns="SYMBOL", keytype="ENSEMBL")
+
+gene_symbols <- na.omit(gene_symbols)
+
+rownames(network) <- gene_symbols$SYMBOL[match(gene_symbols$ENSEMBL, rownames(network))]
+colnames(network) <- gene_symbols$SYMBOL[match(gene_symbols$ENSEMBL, colnames(network))]
+
+
+
+hs1m <- read.table("C:/Users/franc/OneDrive/Desktop/Tirocinio/hs1m.txt", header = T)
+vsd_matrix <- as.matrix(hs1m)
+which(rownames(vsd_matrix) == "ADARB2")
+vsd_matrix <- matrix(vsd_matrix[c(1:97, 7764, 11375, 10794), ])
+vsd_matrix <- as.matrix(vsd_matrix)
+save(vsd_matrix, file = "C:/Users/franc/OneDrive/Desktop/Tirocinio/network2adj/data/vsd_matrix.rda", compress = "xz")
+save(vsd_matrix, file = "C:/Users/franc/OneDrive/Documenti/network2activity/data/vsd_matrix.rda")
+
+
+setwd("C:/Users/franc/OneDrive/Desktop/Tirocinio/network2adj/data")
+
+load("regul_interferon_specific.rda")
+inferenceWithInterferonSignature <- function(mat) {
+
+  vpres <- viper(mat, regul_A549_cells, verbose = FALSE)
+  vpres
+
+}
+
+inferenceWithInterferonSignature(vsd_matrix)
+viper(vsd_matrix, regul_interferon_specific, verbose = FALSE)
+
+library(dplyr)
+update.packages("viper")
+
+class(regul_interferon_specific) <- "regulon"
+
+sapply(regul_interferon_specific, function(x) is.numeric(x$tfmode))
+sapply(regul_interferon_specific, function(x) is.numeric(x$likelihood))
+
+
+
+getDf <- function(net) {
+
+  g  <- graph_from_adjacency_matrix(net, weighted=TRUE, mode="undirected")
+  dataf <- as_data_frame(g)
+
+  dataf
+
+}
+
+net_df <- getDf(network)
+library(dplyr)
+df <- as.data.frame(df)
+interactors <- getInteractorsList(network_df, regulators_list)
+
+aa <- writeAdjFile(interactors, file_name = "int")
+re <- aracne2regulon(aa, vsd_matrix, verbose = FALSE)
+vpres <- viper(vsd_matrix, re, verbose = FALSE)
+re$ADAM22
+inferenceWithYourSignature(aa, vsd_matrix)
+
+network_df$from <- a549reg_go_terms$TERM[match(annots_a549reg$GO,
+                                                   a549reg_go_terms$GOID)]
+
+aa <- read.table(file = "int.adj", sep = "\t")
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+
+genes <- AnnotationDbi::select(org.Hs.eg.db,
+                                          keys = network_df$from,
+                                          columns = c("SYMBOL"),
+                                          keytype = "ENSEMBL")
+
+network_df$from <- genes$SYMBOL[match(network_df$from,
+                                      genes$ENSEMBL)]
+network_df <- readRDS("network_df.rda")
+
+genes <- AnnotationDbi::select(org.Hs.eg.db,
+                               keys = network_df$to,
+                               columns = c("SYMBOL"),
+                               keytype = "ENSEMBL")
+
+network_df$to <- genes$SYMBOL[match(network_df$to,
+                                      genes$ENSEMBL)]
+
+network_df <- na.omit(network_df)
+
+save(network_df, file = "C:/Users/franc/OneDrive/Documenti/network2activity/data/network_df.rda")
+
+
+
+setwd("C:/Users/franc/OneDrive/Documenti/network2activity")
+use_vignette("network2activity")
