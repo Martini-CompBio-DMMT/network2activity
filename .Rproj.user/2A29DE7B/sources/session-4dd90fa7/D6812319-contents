@@ -1,6 +1,0 @@
-BiocManager::install("igraph")
-BiocManager::install("roxygen2")
-library(roxygen2)
-
-
-as.numeric(vsd_matrix)

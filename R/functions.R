@@ -1,61 +1,39 @@
-#' Get the data frame from the network
+#' Infer ADAR activity with the dataset-specific regulon
 #'
-#' This function is used to get a data frame from the file obtained by the
-#' network reconstruction with ARACNe.
+#' This function is used to get ADAR activity scores starting from an expression
+#' matrix with genes as rows and samples as columns, and the gene regulation
+#' network obtained by the expression matrix.
 #'
-#' @usage getDf(net)
-#' @param net network obtained from ARACNe
-#' @return data frame
+#' @usage yourSignature(mat, net, genes, file_name = "")
+#' @param mat Normalized expression matrix used by ARACNe to compute the
+#' network
+#' @param net Network obtained from ARACNe
+#' @param genes List of genes of interest
+#' @param file_name How to nominate the output file
+#' @return Matrix with the activity scores of the genes in the reg_list
 #' @examples
 #'
-#' # Load the example network
-#' data(network)
+#' # Load the example data
+#' data(example_network)
+#' data(example_matrix)
+#' data(example_genes)
 #'
-#' # Get the data frame from the network obtained by ARACNe
-#' net_df <- getDf(network)
+#' # Infer ADAR activity
+#' res <- yourSignature(example_matrix, example_network, example_genes,
+#' file_name = "interactors_scores")
 #'
+#' @import utils
 #' @importFrom igraph graph_from_adjacency_matrix as_data_frame
+#' @importFrom dplyr filter
+#' @importFrom viper aracne2regulon viper
 #' @export
 
-getDf <- function(net) {
+yourSignature <- function(mat, net, genes, file_name = "") {
 
-  g  <- graph_from_adjacency_matrix(net, weighted=TRUE, mode="undirected")
+  g  <- graph_from_adjacency_matrix(net, weighted = TRUE, mode = "undirected")
   dataf <- as_data_frame(g)
 
-  dataf
-
-}
-
-
-#' Get a list of genes with their interactors
-#'
-#' This function extracts gets the list of regulators, and it adds the genes
-#' for which we want to compute the activity with VIPER.
-#' Then it filters the data frame obtained by the network to consider only the
-#' regulators of the gene of interest and, for each regulator, it gets a list of
-#' their interactors and the corresponding scores.
-#'
-#' @usage getInteractorsList(dataf, reg_list)
-#' @param dataf data frame obtained by the network
-#' @param reg_list list with the regulator genes
-#' @return list
-#' @examples
-#'
-#' # Load the list of regulators
-#' data(regulators_list)
-#'
-#' # Load the example data frame derived from the network
-#' data(network_df)
-#'
-#' # Get the list of the regulators with their interactors
-#' interactors <- getInteractorsList(network_df, regulators_list)
-#'
-#' @importFrom dplyr filter
-#' @export
-
-getInteractorsList <- function(dataf, reg_list) {
-
-  genes_selected <- reg_list
+  genes_selected <- c(regulators_list, genes)
 
   df_new <- data.frame()
   for (g in genes_selected) {
@@ -70,192 +48,275 @@ getInteractorsList <- function(dataf, reg_list) {
   df_list <- split(df_new, df_new$from)
   df_list <- lapply(df_list, function(dataf) {dataf[, -1]})
 
-  df_list
+  file_adj_path <- file.path(getwd(), paste0(file_name, ".adj"))
 
-}
-
-#' Get the adjacency matrix file as requested by VIPER
-#'
-#' This function is used to obtain the adjacency matrix file in the format
-#' requested by VIPER to obtain the regulon with the "aracne2regulon" function.
-#'
-#' @usage writeAdjFile(df_list, file_name = "")
-#' @param df_list list of genes with their interactors
-#' @param file_name how to nominate the file
-#' @return .adj file
-#' @examples
-#'
-#' # Load the list of regulators
-#' data(regulators_list)
-#'
-#' # Load the example data frame derived from the network
-#' data(network_df)
-#'
-#' # Get the list of the regulators with their interactors
-#' interactors <- getInteractorsList(network_df, regulators_list)
-#'
-#' writeAdjFile(interactors, file_name = "interactors")
-#'
-#' @import utils
-#' @export
-
-writeAdjFile <- function(df_list, file_name = "") {
-
-  file_txt <- file.path(getwd(), paste0(file_name, ".txt"))
-  file_adj <- file.path(getwd(), paste0(file_name, ".adj"))
-
-  if (file.exists(file_txt)) {
-    file.remove(file_txt)
+  if (file.exists(file_adj_path)) {
+    file.remove(file_adj_path)
   }
 
-  if (file.exists(file_adj)) {
-    file.remove(file_adj)
-  }
-
-  i = 1
-  file(file_txt, "w")
+  i <- 1
   while (i < length(df_list)) {
     a <- c(names(df_list[i]), paste(df_list[[i]]$to, df_list[[i]]$weight))
-    b <- write.table(x = rbind(a), file = file_txt, row.names = F,
-                     col.names = F, quote = F, append = T)
-    i = i+1
+    write.table(x = rbind(a), file = file_adj_path, row.names = FALSE,
+                col.names = FALSE, quote = FALSE, append = TRUE, sep = " ")
+    i <- i+1
   }
 
-  txt_file <- readLines(file_txt)
-  adj_file <- file_adj
-  modified_file <- gsub(" ", "\t", txt_file)
-  writeLines(modified_file, adj_file)
+  adj_file <- readLines(file_adj_path)
+  modified_file <- gsub(" ", "\t", adj_file)
+  writeLines(modified_file, file_adj_path)
 
-  file_adj
+  regulon <- aracne2regulon(file_adj_path, mat, verbose = FALSE)
+  res <- viper(mat, regulon[grep("ADAR", ignore.case = TRUE, names(regulon))],
+               verbose = FALSE, minsize = 0)
+  res["ADAR", ] <- (res["ADAR", ] - min(res["ADAR", ])) /
+    (max(res["ADAR", ]) - min(res["ADAR", ]))
+  res["ADARB1", ] <- (res["ADARB1", ] - min(res["ADARB1", ])) /
+    (max(res["ADARB1", ]) - min(res["ADARB1", ]))
 
-}
-
-#' Infer ADAR activity with the dataset-specific signature
-#'
-#' This function is used to infer the protein activity with VIPER using the
-#' signature computed from the original dataset.
-#'
-#' @usage inferenceWithYourSignature(adjfile, mat)
-#' @param adjfile file .adj with the interactors and their scores
-#' @param mat expression matrix
-#' @return VIPER results
-#' @examples
-#'
-#' # Load the list of regulators
-#' data(regulators_list)
-#'
-#' # Load the example data frame derived from the network
-#' data(network_df)
-#'
-#' # Load the example expression matrix
-#' data(vsd_matrix)
-#'
-#' # Get the list of the regulators with their interactors
-#' interactors <- getInteractorsList(network_df, regulators_list)
-#'
-#' # Get the file in the format requested by VIPER
-#' interactors_adj <- writeAdjFile(interactors, file_name = "interactors")
-#'
-#' # Infer protein activity with VIPER
-#' inferenceWithYourSignature(interactors_adj, vsd_matrix)
-#'
-#' @import viper
-#' @export
-
-inferenceWithYourSignature <- function(adjfile, mat) {
-
-  regul <- aracne2regulon(adjfile, mat, verbose = FALSE)
-  vpres <- viper(mat, regul, verbose = FALSE)
-  vpres
+  res
 
 }
 
-#' Infer ADAR activity with the A549 cells signature
+#' Compute ADAR activity with the cancer-related signature
 #'
-#' This function is used to infer the protein activity with VIPER using the
-#' signature computed from the A549 cell line.
+#' The function returns ADAR activity scores for each sample/spot/cell depending
+#' on the starting expression matrix given as input. It employs a signature
+#' derived from the union of two datasets of A549 cell line samples, which is
+#' ideal to measure ADAR activity in a cancer-related context.
 #'
-#' @usage inferenceWithA549Signature(mat)
-#' @param mat expression matrix
-#' @return VIPER results
+#' @usage tumoralSignature(mat, object)
+#' @param mat Either a numeric expression matrix with genes as rows and samples
+#' as columns or an ExpressionSet from a Seurat object, SingleCellExperiment or
+#' SpatialExperiment
+#' @param object Character string indicating the type of object, either bulk or
+#' eset
+#' @return Matrix with ADAR activity scores
 #' @examples
 #'
 #' # Load the regulon
-#' data(regul_A549_cells)
+#' data(tumoral_regulon)
 #'
 #' # Load the example expression matrix
-#' data(vsd_matrix)
+#' data(example_matrix)
 #'
-#' # Infer protein activity with VIPER
-#' inferenceWithA549Signature(vsd_matrix)
+#' # Compute ADAR activity
+#' res <- tumoralSignature(example_matrix, object = "bulk")
 #'
-#' @import viper
+#' @importFrom viper viper
+#' @importFrom GSVA ssgseaParam gsva
+#' @importFrom GSEABase GeneSetCollection GeneSet
 #' @export
 
-inferenceWithA549Signature <- function(mat) {
+tumoralSignature <- function(mat, object = c("bulk", "eset")) {
 
-  regul <- regul_A549_cells
-  vpres <- viper(mat, regul, verbose = FALSE, minsize = 5)
-  vpres
+  if (object == "bulk") {
+    regulon <- tumoral_regulon
+    res <- viper(mat, regulon, verbose = FALSE, minsize = 0)
+    res["ADAR", ] <- (res["ADAR", ] - min(res["ADAR", ])) /
+      (max(res["ADAR", ]) - min(res["ADAR", ]))
+    res["ADARB1", ] <- (res["ADARB1", ] - min(res["ADARB1", ])) /
+      (max(res["ADARB1", ]) - min(res["ADARB1", ]))
+    res
+  }
+
+  else {
+    tumoral_adar1_sign_genes <- names(tumoral_regulon$ADAR$tfmode)
+    tumoral_adar1_gs <- GeneSet(tumoral_adar1_sign_genes,
+                                setName = "tumoral_adar1")
+    tumoral_adar2_sign_genes <- names(tumoral_regulon$ADARB1$tfmode)
+    tumoral_adar2_gs <- GeneSet(tumoral_adar2_sign_genes,
+                                setName = "tumoral_adar2")
+
+    all_sets <- GeneSetCollection(list(tumoral_adar1_gs, tumoral_adar2_gs))
+    ssgsea_obj <- ssgseaParam(mat, geneSets = all_sets)
+    ssgsea <- gsva(ssgsea_obj)
+    ssgsea[1, ] <- (ssgsea[1, ] - min(ssgsea[1, ])) / (max(ssgsea[1, ]) -
+                                                         min(ssgsea[1, ]))
+    ssgsea[2, ] <- (ssgsea[2, ] - min(ssgsea[2, ])) / (max(ssgsea[2, ]) -
+                                                         min(ssgsea[2, ]))
+    mat[["adar1_activity"]] <- ssgsea[1, ]
+    mat[["adar2_activity"]] <- ssgsea[2, ]
+    ssgsea
+  }
 
 }
 
-#' Infer ADAR activity with the neurons-specific signature
+#' Compute ADAR activity with the neuronal signature
 #'
-#' This function is used to infer the protein activity with VIPER using the
-#' signature computed from hESC h9 neurons.
+#' The function returns ADAR activity scores for each sample/spot/cell depending
+#' on the starting expression matrix given as input. It employs a signature
+#' derived from a dataset of hESC h9 cell line samples, which is ideal to
+#' measure ADAR activity in a human neuronal context.
 #'
-#' @usage inferenceWithNeuronsSignature(mat)
-#' @param mat expression matrix
-#' @return VIPER results
+#' @usage neuronalSignature(mat, object)
+#' @param mat Either a numeric expression matrix with genes as rows and samples
+#' as columns or an ExpressionSet from a Seurat object, SingleCellExperiment or
+#' SpatialExperiment
+#' @param object Character string indicating the type of object, either bulk or
+#' eset
+#' @return Matrix with ADAR activity scores
 #' @examples
 #'
 #' # Load the regulon
-#' data(regul_hESC_neurons)
+#' data(neural_regulon)
 #'
 #' # Load the example expression matrix
-#' data(vsd_matrix)
+#' data(example_matrix)
 #'
-#' # Infer protein activity with VIPER
-#' inferenceWithNeuronsSignature(vsd_matrix)
+#' # Compute ADAR activity
+#' res <- neuronalSignature(example_matrix, object = "bulk")
 #'
-#' @import viper
+#' @importFrom viper viper
+#' @importFrom GSVA ssgseaParam gsva
+#' @importFrom GSEABase GeneSetCollection GeneSet
 #' @export
 
-inferenceWithNeuronsSignature <- function(mat) {
+neuronalSignature <- function(mat, object = c("bulk", "eset")) {
 
-  regul <- regul_hESC_neurons
-  vpres <- viper(mat, regul, verbose = FALSE, minsize = 5)
-  vpres
+  if (object == "bulk") {
+    regulon <- neural_regulon
+    res <- viper(mat, regulon, verbose = FALSE, minsize = 0)
+    res["ADAR", ] <- (res["ADAR", ] - min(res["ADAR", ])) /
+      (max(res["ADAR", ]) - min(res["ADAR", ]))
+    res["ADARB1", ] <- (res["ADARB1", ] - min(res["ADARB1", ])) /
+      (max(res["ADARB1", ]) - min(res["ADARB1", ]))
+    res
+  }
+
+  else {
+    neural_adar1_sign_genes <- names(neural_regulon$ADAR$tfmode)
+    neural_adar1_gs <- GeneSet(neural_adar1_sign_genes,
+                                setName = "neural_adar1")
+
+    ssgsea_obj <- ssgseaParam(mat, geneSets = neural_adar1_gs)
+    ssgsea <- gsva(ssgsea_obj)
+    ssgsea[1, ] <- (ssgsea[1, ] - min(ssgsea[1, ])) / (max(ssgsea[1, ]) -
+                                                         min(ssgsea[1, ]))
+    mat[["adar1_activity"]] <- ssgsea[1, ]
+    ssgsea
+  }
 
 }
 
-#' Infer ADAR activity with the interferon-specific signature
+#' Compute ADAR activity with the interferon-specific signature
 #'
-#' This function is used to infer the protein activity with VIPER using the
-#' signature computed from HEK293T cells treated with interferon.
+#' The function returns ADAR activity scores for each sample/spot/cell depending
+#' on the starting expression matrix given as input. It employs a signature
+#' derived from a dataset of interferon-treated HEK293T cell line, which is
+#' ideal to measure ADAR activity in an inflammatory context.
 #'
-#' @usage inferenceWithInterferonSignature(mat)
-#' @param mat expression matrix
-#' @return VIPER results
+#' @usage IFNSignature(mat, object)
+#' @param mat Either a numeric expression matrix with genes as rows and samples
+#' as columns or an ExpressionSet from a Seurat object, SingleCellExperiment or
+#' SpatialExperiment
+#' @param object Character string indicating the type of object, either bulk or
+#' eset
+#' @return Matrix with ADAR activity scores
 #' @examples
 #'
 #' # Load the regulon
-#' data(regul_interferon_specific)
+#' data(interferon_regulon)
 #'
 #' # Load the example expression matrix
-#' data(vsd_matrix)
+#' data(example_matrix)
 #'
-#' # Infer protein activity with VIPER
-#' inferenceWithInterferonSignature(vsd_matrix)
+#' # Compute ADAR activity
+#' res <- IFNSignature(example_matrix, object = "bulk")
 #'
-#' @import viper
+#' @importFrom viper viper
+#' @importFrom GSVA ssgseaParam gsva
+#' @importFrom GSEABase GeneSetCollection GeneSet
 #' @export
 
-inferenceWithInterferonSignature <- function(mat) {
+IFNSignature <- function(mat, object = c("bulk", "eset")) {
 
-  regul <- regul_interferon_specific
-  vpres <- viper(mat, regul, verbose = FALSE, minsize = 5)
-  vpres
+  if (object == "bulk") {
+    regulon <- interferon_regulon
+    res <- viper(mat, regulon, verbose = FALSE, minsize = 0)
+    res["ADAR", ] <- (res["ADAR", ] - min(res["ADAR", ])) /
+      (max(res["ADAR", ]) - min(res["ADAR", ]))
+    res["ADARB1", ] <- (res["ADARB1", ] - min(res["ADARB1", ])) /
+      (max(res["ADARB1", ]) - min(res["ADARB1", ]))
+    res
+  }
+
+  else {
+    ifn_adar1_sign_genes <- names(interferon_regulon$ADAR$tfmode)
+    ifn_adar1_gs <- GeneSet(ifn_adar1_sign_genes, setName = "ifn_adar1")
+
+    ssgsea_obj <- ssgseaParam(mat, geneSets = ifn_adar1_gs)
+    ssgsea <- gsva(ssgsea_obj)
+    ssgsea[1, ] <- (ssgsea[1, ] - min(ssgsea[1, ])) / (max(ssgsea[1, ]) -
+                                                         min(ssgsea[1, ]))
+    mat[["adar1_activity"]] <- ssgsea[1, ]
+    ssgsea
+  }
+
+}
+
+#' Compute ADAR activity with the mouse-specific neuronal signature
+#'
+#' The function returns ADAR activity scores for each sample/spot/cell depending
+#' on the starting expression matrix given as input. It employs a signature
+#' derived from a dataset of neurons and whole brain of mice, which is
+#' ideal to measure ADAR activity in a mouse neuronal context.
+#'
+#' @usage neuronalMmSignature(mat, object)
+#' @param mat Either a numeric expression matrix with genes as rows and samples
+#' as columns or an ExpressionSet from a Seurat object, SingleCellExperiment or
+#' SpatialExperiment
+#' @param object Character string indicating the type of object, either bulk or
+#' eset
+#' @return Matrix with ADAR activity scores
+#' @examples
+#'
+#' # Load the regulon
+#' data(mouse_neuronal_regulon)
+#'
+#' # Load the example expression matrix
+#' data(example_matrix_Mm)
+#'
+#' # Compute ADAR activity
+#' res <- neuronalMmSignature(example_matrix_Mm, object = "bulk")
+#'
+#' @importFrom viper viper
+#' @importFrom GSVA ssgseaParam gsva
+#' @importFrom GSEABase GeneSetCollection GeneSet
+#' @export
+
+neuronalMmSignature <- function(mat, object = c("bulk", "eset")) {
+
+  if (object == "bulk") {
+    regulon <- mouse_neuronal_regulon
+    res <- viper(mat, regulon, verbose = FALSE, minsize = 0)
+    res["Adar", ] <- (res["Adar", ] - min(res["Adar", ])) /
+      (max(res["Adar", ]) - min(res["Adar", ]))
+    res["Adarb1", ] <- (res["Adarb1", ] - min(res["Adarb1", ])) /
+      (max(res["Adarb1", ]) - min(res["Adarb1", ]))
+    res["Adarb2", ] <- (res["Adarb2", ] - min(res["Adarb2", ])) /
+      (max(res["Adarb2", ]) - min(res["Adarb2", ]))
+    res
+  }
+
+  else {
+    Mm_adar1_sign_genes <- names(mouse_neuronal_regulon$ADAR$tfmode)
+    Mm_adar1_gs <- GeneSet(Mm_adar1_sign_genes,
+                                setName = "neuronalMm_adar1")
+    Mm_adar2_sign_genes <- names(mouse_neuronal_regulon$ADARB1$tfmode)
+    Mm_adar2_gs <- GeneSet(Mm_adar2_sign_genes,
+                                setName = "neuronalMm_adar2")
+
+    all_sets <- GeneSetCollection(list(Mm_adar1_gs, Mm_adar2_gs))
+    ssgsea_obj <- ssgseaParam(mat, geneSets = all_sets)
+    ssgsea <- gsva(ssgsea_obj)
+    ssgsea[1, ] <- (ssgsea[1, ] - min(ssgsea[1, ])) / (max(ssgsea[1, ]) -
+                                                         min(ssgsea[1, ]))
+    ssgsea[2, ] <- (ssgsea[2, ] - min(ssgsea[2, ])) / (max(ssgsea[2, ]) -
+                                                         min(ssgsea[2, ]))
+    mat[["adar1_activity"]] <- ssgsea[1, ]
+    mat[["adar2_activity"]] <- ssgsea[2, ]
+    ssgsea
+  }
 
 }

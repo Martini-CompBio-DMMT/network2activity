@@ -3,17 +3,17 @@
 \docType{data}
 \name{regulators_list}
 \alias{regulators_list}
-\title{Example Regulators List}
+\title{H. sapiens Regulators List}
 \format{
 List
 }
 \source{
-generated for the example
+Gene Ontology
 }
 \usage{
 regulators_list
 }
 \description{
-List of ADAR regulators.
+List of known regulators.
 }
 \keyword{datasets}

@@ -1,2 +1,5 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^network2activity\.Rproj$
+^doc$
+^Meta$

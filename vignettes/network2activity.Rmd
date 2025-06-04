@@ -20,56 +20,62 @@ library(network2activity)
 
 # Introduction
 
-The package comprises some functions which, from a regulatory network and a gene 
-expression matrix obtained by RNA-Seq data and a list of regulator genes, 
-allows to infer the protein activity employing VIPER.
+The package includes some functions to get a Contextual Activity Score (CAS) of
+ADAR proteins. This can be done with just a normalized count expression matrix
+by using the already available signatures, specific for different biological
+contexts. Otherwise, if the reconstructed regulatory network of your dataset is
+available, you can compute your own regulon and use it to infer the protein
+activity.
 
-## Get the data frame from the network obtained by the network reconstruction with ARACNe
+## Infer ADAR activity with the dataset-specific regulon
 
 ```{r}
-data(network)
-net_df <- getDf(network)
+# Load the example data
+data(example_network)
+data(example_matrix)
+data(example_genes)
+
+# Infer ADAR activity
+res <- yourSignature(example_matrix, example_network, example_genes, 
+                     file_name = "interactors_scores")
 ```
 
-## The function filters the data frame obtained by the network to consider only the regulators of the gene of interest and, for each regulator, it gets a list of their interactors and the corresponding scores
+## Compute ADAR activity with the cancer-related signature
 
 ```{r}
-data(network_df)
-data(regulators_list)
-interactors <- getInteractorsList(network_df, regulators_list)
+# Load the regulon
+data(tumoral_regulon)
+
+# Load the example expression matrix
+data(example_matrix)
+
+# Compute ADAR activity
+res <- tumoralSignature(example_matrix, object = "bulk")
 ```
 
-## Get the adjacency matrix file as requested by VIPER
+## Compute ADAR activity with the neuronal signature
 
 ```{r}
-interactors_adj <- writeAdjFile(interactors, file_name = "interactors")
+# Load the regulon
+data(neural_regulon)
+
+# Load the example expression matrix
+data(example_matrix)
+
+# Compute ADAR activity
+res <- neuronalSignature(example_matrix, object = "bulk")
 ```
 
-## Infer ADAR activity with the dataset-specific signature
+## Compute ADAR activity with the interferon-specific signature
 
 ```{r}
-inferenceWithYourSignature(interactors_adj, vsd_matrix)
-```
+# Load the regulon
+data(interferon_regulon)
 
-## Infer ADAR activity with the A549 cells signature
+# Load the example expression matrix
+data(example_matrix)
 
-```{r}
-data(regul_A549_cells)
-data(vsd_matrix)
-inferenceWithA549Signature(vsd_matrix)
-```
-
-## Infer ADAR activity with the neurons-specific signature
-
-```{r}
-data(regul_hESC_neurons)
-inferenceWithNeuronsSignature(vsd_matrix)
-```
-
-## Infer ADAR activity with the interferon-specific signature
-
-```{r}
-data(regul_interferon_specific)
-inferenceWithInterferonSignature(vsd_matrix)
+# Compute ADAR activity
+res <- IFNSignature(example_matrix, object = "bulk")
 ```
 
