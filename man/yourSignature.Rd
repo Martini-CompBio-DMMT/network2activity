@@ -4,7 +4,7 @@
 \alias{yourSignature}
 \title{Infer ADAR activity with the dataset-specific regulon}
 \usage{
-yourSignature(mat, net, genes, file_name = "")
+yourSignature(mat, net, genes, organism = "", file_name = "")
 }
 \arguments{
 \item{mat}{Normalized expression matrix used by ARACNe to compute the
@@ -13,6 +13,8 @@ network}
 \item{net}{Network obtained from ARACNe}
 
 \item{genes}{List of genes of interest}
+
+\item{organism}{"hsapiens" or "mmusculus"}
 
 \item{file_name}{How to nominate the output file}
 }
@@ -33,6 +35,6 @@ data(example_genes)
 
 # Infer ADAR activity
 res <- yourSignature(example_matrix, example_network, example_genes,
-file_name = "interactors_scores")
+organism = "hsapiens", file_name = "interactors_scores")
 
 }

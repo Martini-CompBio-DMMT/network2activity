@@ -13,7 +13,7 @@ License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
     license
 Encoding: UTF-8
 LazyData: true
-Imports: dplyr, utils, igraph, viper, GSVA, GSEABase
+Imports: dplyr, utils, igraph, viper, GSVA, GSEABase, SummarizedExperiment
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 VignetteBuilder: knitr

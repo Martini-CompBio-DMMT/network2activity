@@ -4,11 +4,12 @@
 #' matrix with genes as rows and samples as columns, and the gene regulation
 #' network obtained by the expression matrix.
 #'
-#' @usage yourSignature(mat, net, genes, file_name = "")
+#' @usage yourSignature(mat, net, genes, organism = "", file_name = "")
 #' @param mat Normalized expression matrix used by ARACNe to compute the
 #' network
 #' @param net Network obtained from ARACNe
 #' @param genes List of genes of interest
+#' @param organism "hsapiens" or "mmusculus"
 #' @param file_name How to nominate the output file
 #' @return Matrix with the activity scores of the genes in the reg_list
 #' @examples
@@ -20,7 +21,7 @@
 #'
 #' # Infer ADAR activity
 #' res <- yourSignature(example_matrix, example_network, example_genes,
-#' file_name = "interactors_scores")
+#' organism = "hsapiens", file_name = "interactors_scores")
 #'
 #' @import utils
 #' @importFrom igraph graph_from_adjacency_matrix as_data_frame
@@ -28,12 +29,15 @@
 #' @importFrom viper aracne2regulon viper
 #' @export
 
-yourSignature <- function(mat, net, genes, file_name = "") {
+yourSignature <- function(mat, net, genes, organism = "", file_name = "") {
 
   g  <- graph_from_adjacency_matrix(net, weighted = TRUE, mode = "undirected")
   dataf <- as_data_frame(g)
 
-  genes_selected <- c(regulators_list, genes)
+  if (organism == "hsapiens") {
+    genes_selected <- c(regulators_list, genes)
+  }
+  else {genes_selected <- c(regulators_list_Mm, genes)}
 
   df_new <- data.frame()
   for (g in genes_selected) {
@@ -59,7 +63,7 @@ yourSignature <- function(mat, net, genes, file_name = "") {
     a <- c(names(df_list[i]), paste(df_list[[i]]$to, df_list[[i]]$weight))
     write.table(x = rbind(a), file = file_adj_path, row.names = FALSE,
                 col.names = FALSE, quote = FALSE, append = TRUE, sep = " ")
-    i <- i+1
+    i <- i + 1
   }
 
   adj_file <- readLines(file_adj_path)
@@ -69,10 +73,18 @@ yourSignature <- function(mat, net, genes, file_name = "") {
   regulon <- aracne2regulon(file_adj_path, mat, verbose = FALSE)
   res <- viper(mat, regulon[grep("ADAR", ignore.case = TRUE, names(regulon))],
                verbose = FALSE, minsize = 0)
-  res["ADAR", ] <- (res["ADAR", ] - min(res["ADAR", ])) /
-    (max(res["ADAR", ]) - min(res["ADAR", ]))
-  res["ADARB1", ] <- (res["ADARB1", ] - min(res["ADARB1", ])) /
-    (max(res["ADARB1", ]) - min(res["ADARB1", ]))
+
+  res[which(tolower(rownames(res)) == "adar"), ] <-
+    (res[which(tolower(rownames(res)) == "adar"), ] -
+       min(res[which(tolower(rownames(res)) == "adar"), ])) /
+    (max(res[which(tolower(rownames(res)) == "adar"), ]) -
+       min(res[which(tolower(rownames(res)) == "adar"), ]))
+
+  res[which(tolower(rownames(res)) == "adarb1"), ] <-
+    (res[which(tolower(rownames(res)) == "adarb1"), ] -
+       min(res[which(tolower(rownames(res)) == "adarb1"), ])) /
+    (max(res[which(tolower(rownames(res)) == "adarb1"), ]) -
+       min(res[which(tolower(rownames(res)) == "adarb1"), ]))
 
   res
 
@@ -91,7 +103,7 @@ yourSignature <- function(mat, net, genes, file_name = "") {
 #' SpatialExperiment
 #' @param object Character string indicating the type of object, either bulk or
 #' eset
-#' @return Matrix with ADAR activity scores
+#' @return Matrix with ADAR activity scores or eset object updated
 #' @examples
 #'
 #' # Load the regulon
@@ -106,6 +118,7 @@ yourSignature <- function(mat, net, genes, file_name = "") {
 #' @importFrom viper viper
 #' @importFrom GSVA ssgseaParam gsva
 #' @importFrom GSEABase GeneSetCollection GeneSet
+#' @importFrom SummarizedExperiment assay
 #' @export
 
 tumoralSignature <- function(mat, object = c("bulk", "eset")) {
@@ -117,10 +130,17 @@ tumoralSignature <- function(mat, object = c("bulk", "eset")) {
       (max(res["ADAR", ]) - min(res["ADAR", ]))
     res["ADARB1", ] <- (res["ADARB1", ] - min(res["ADARB1", ])) /
       (max(res["ADARB1", ]) - min(res["ADARB1", ]))
-    res
+
+    return(res)
   }
 
   else {
+
+    if (class(mat) == "Seurat") {
+      counts <- mat@assays$RNA$data
+    }
+    else {counts <- assay(mat, "logcounts")}
+
     tumoral_adar1_sign_genes <- names(tumoral_regulon$ADAR$tfmode)
     tumoral_adar1_gs <- GeneSet(tumoral_adar1_sign_genes,
                                 setName = "tumoral_adar1")
@@ -129,15 +149,17 @@ tumoralSignature <- function(mat, object = c("bulk", "eset")) {
                                 setName = "tumoral_adar2")
 
     all_sets <- GeneSetCollection(list(tumoral_adar1_gs, tumoral_adar2_gs))
-    ssgsea_obj <- ssgseaParam(mat, geneSets = all_sets)
+    ssgsea_obj <- ssgseaParam(counts, geneSets = all_sets)
     ssgsea <- gsva(ssgsea_obj)
     ssgsea[1, ] <- (ssgsea[1, ] - min(ssgsea[1, ])) / (max(ssgsea[1, ]) -
                                                          min(ssgsea[1, ]))
     ssgsea[2, ] <- (ssgsea[2, ] - min(ssgsea[2, ])) / (max(ssgsea[2, ]) -
                                                          min(ssgsea[2, ]))
+
     mat[["adar1_activity"]] <- ssgsea[1, ]
     mat[["adar2_activity"]] <- ssgsea[2, ]
-    ssgsea
+
+    return(mat)
   }
 
 }
@@ -159,7 +181,7 @@ tumoralSignature <- function(mat, object = c("bulk", "eset")) {
 #' @examples
 #'
 #' # Load the regulon
-#' data(neural_regulon)
+#' data(neuronal_regulon)
 #'
 #' # Load the example expression matrix
 #' data(example_matrix)
@@ -170,12 +192,13 @@ tumoralSignature <- function(mat, object = c("bulk", "eset")) {
 #' @importFrom viper viper
 #' @importFrom GSVA ssgseaParam gsva
 #' @importFrom GSEABase GeneSetCollection GeneSet
+#' @importFrom SummarizedExperiment assay
 #' @export
 
 neuronalSignature <- function(mat, object = c("bulk", "eset")) {
 
   if (object == "bulk") {
-    regulon <- neural_regulon
+    regulon <- neuronal_regulon
     res <- viper(mat, regulon, verbose = FALSE, minsize = 0)
     res["ADAR", ] <- (res["ADAR", ] - min(res["ADAR", ])) /
       (max(res["ADAR", ]) - min(res["ADAR", ]))
@@ -185,72 +208,24 @@ neuronalSignature <- function(mat, object = c("bulk", "eset")) {
   }
 
   else {
-    neural_adar1_sign_genes <- names(neural_regulon$ADAR$tfmode)
-    neural_adar1_gs <- GeneSet(neural_adar1_sign_genes,
-                                setName = "neural_adar1")
 
-    ssgsea_obj <- ssgseaParam(mat, geneSets = neural_adar1_gs)
+    if (class(mat) == "Seurat") {
+      counts <- mat@assays$RNA$data
+    }
+    else {counts <- assay(mat, "logcounts")}
+
+    neuronal_adar1_sign_genes <- names(neuronal_regulon$ADAR$tfmode)
+    neuronal_adar1_gs <- GeneSet(neuronal_adar1_sign_genes,
+                                 setName = "neuronal_adar1")
+
+    ssgsea_obj <- ssgseaParam(counts, geneSets = neuronal_adar1_gs)
     ssgsea <- gsva(ssgsea_obj)
     ssgsea[1, ] <- (ssgsea[1, ] - min(ssgsea[1, ])) / (max(ssgsea[1, ]) -
                                                          min(ssgsea[1, ]))
     mat[["adar1_activity"]] <- ssgsea[1, ]
-    ssgsea
-  }
 
-}
+    return(mat)
 
-#' Compute ADAR activity with the interferon-specific signature
-#'
-#' The function returns ADAR activity scores for each sample/spot/cell depending
-#' on the starting expression matrix given as input. It employs a signature
-#' derived from a dataset of interferon-treated HEK293T cell line, which is
-#' ideal to measure ADAR activity in an inflammatory context.
-#'
-#' @usage IFNSignature(mat, object)
-#' @param mat Either a numeric expression matrix with genes as rows and samples
-#' as columns or an ExpressionSet from a Seurat object, SingleCellExperiment or
-#' SpatialExperiment
-#' @param object Character string indicating the type of object, either bulk or
-#' eset
-#' @return Matrix with ADAR activity scores
-#' @examples
-#'
-#' # Load the regulon
-#' data(interferon_regulon)
-#'
-#' # Load the example expression matrix
-#' data(example_matrix)
-#'
-#' # Compute ADAR activity
-#' res <- IFNSignature(example_matrix, object = "bulk")
-#'
-#' @importFrom viper viper
-#' @importFrom GSVA ssgseaParam gsva
-#' @importFrom GSEABase GeneSetCollection GeneSet
-#' @export
-
-IFNSignature <- function(mat, object = c("bulk", "eset")) {
-
-  if (object == "bulk") {
-    regulon <- interferon_regulon
-    res <- viper(mat, regulon, verbose = FALSE, minsize = 0)
-    res["ADAR", ] <- (res["ADAR", ] - min(res["ADAR", ])) /
-      (max(res["ADAR", ]) - min(res["ADAR", ]))
-    res["ADARB1", ] <- (res["ADARB1", ] - min(res["ADARB1", ])) /
-      (max(res["ADARB1", ]) - min(res["ADARB1", ]))
-    res
-  }
-
-  else {
-    ifn_adar1_sign_genes <- names(interferon_regulon$ADAR$tfmode)
-    ifn_adar1_gs <- GeneSet(ifn_adar1_sign_genes, setName = "ifn_adar1")
-
-    ssgsea_obj <- ssgseaParam(mat, geneSets = ifn_adar1_gs)
-    ssgsea <- gsva(ssgsea_obj)
-    ssgsea[1, ] <- (ssgsea[1, ] - min(ssgsea[1, ])) / (max(ssgsea[1, ]) -
-                                                         min(ssgsea[1, ]))
-    mat[["adar1_activity"]] <- ssgsea[1, ]
-    ssgsea
   }
 
 }
@@ -283,6 +258,7 @@ IFNSignature <- function(mat, object = c("bulk", "eset")) {
 #' @importFrom viper viper
 #' @importFrom GSVA ssgseaParam gsva
 #' @importFrom GSEABase GeneSetCollection GeneSet
+#' @importFrom SummarizedExperiment assay
 #' @export
 
 neuronalMmSignature <- function(mat, object = c("bulk", "eset")) {
@@ -300,15 +276,21 @@ neuronalMmSignature <- function(mat, object = c("bulk", "eset")) {
   }
 
   else {
-    Mm_adar1_sign_genes <- names(mouse_neuronal_regulon$ADAR$tfmode)
+
+    if (class(mat) == "Seurat") {
+      counts <- mat@assays$RNA$data
+    }
+    else {counts <- assay(mat, "logcounts")}
+
+    Mm_adar1_sign_genes <- names(mouse_neuronal_regulon$Adar$tfmode)
     Mm_adar1_gs <- GeneSet(Mm_adar1_sign_genes,
                                 setName = "neuronalMm_adar1")
-    Mm_adar2_sign_genes <- names(mouse_neuronal_regulon$ADARB1$tfmode)
+    Mm_adar2_sign_genes <- names(mouse_neuronal_regulon$Adarb1$tfmode)
     Mm_adar2_gs <- GeneSet(Mm_adar2_sign_genes,
                                 setName = "neuronalMm_adar2")
 
     all_sets <- GeneSetCollection(list(Mm_adar1_gs, Mm_adar2_gs))
-    ssgsea_obj <- ssgseaParam(mat, geneSets = all_sets)
+    ssgsea_obj <- ssgseaParam(counts, geneSets = all_sets)
     ssgsea <- gsva(ssgsea_obj)
     ssgsea[1, ] <- (ssgsea[1, ] - min(ssgsea[1, ])) / (max(ssgsea[1, ]) -
                                                          min(ssgsea[1, ]))
@@ -316,7 +298,9 @@ neuronalMmSignature <- function(mat, object = c("bulk", "eset")) {
                                                          min(ssgsea[2, ]))
     mat[["adar1_activity"]] <- ssgsea[1, ]
     mat[["adar2_activity"]] <- ssgsea[2, ]
-    ssgsea
+
+    return(mat)
+
   }
 
 }

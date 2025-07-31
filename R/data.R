@@ -50,16 +50,7 @@
 #' @format Regulon
 #' @source computed from the dataset
 
-"neural_regulon"
-
-#' Regulon computed from HEK293T cells treated with interferon
-#'
-#' Object of class "regulon".
-#'
-#' @format Regulon
-#' @source computed from the dataset
-
-"interferon_regulon"
+"neuronal_regulon"
 
 #' Regulon computed from M. musculus neurons and whole brain
 #'

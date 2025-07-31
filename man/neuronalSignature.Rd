@@ -26,7 +26,7 @@ measure ADAR activity in a human neuronal context.
 \examples{
 
 # Load the regulon
-data(neural_regulon)
+data(neuronal_regulon)
 
 # Load the example expression matrix
 data(example_matrix)

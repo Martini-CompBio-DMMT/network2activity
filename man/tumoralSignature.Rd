@@ -15,7 +15,7 @@ SpatialExperiment}
 eset}
 }
 \value{
-Matrix with ADAR activity scores
+Matrix with ADAR activity scores or eset object updated
 }
 \description{
 The function returns ADAR activity scores for each sample/spot/cell depending

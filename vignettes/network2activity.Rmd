@@ -57,7 +57,7 @@ res <- tumoralSignature(example_matrix, object = "bulk")
 
 ```{r}
 # Load the regulon
-data(neural_regulon)
+data(neuronal_regulon)
 
 # Load the example expression matrix
 data(example_matrix)
@@ -66,16 +66,16 @@ data(example_matrix)
 res <- neuronalSignature(example_matrix, object = "bulk")
 ```
 
-## Compute ADAR activity with the interferon-specific signature
+## Compute ADAR activity with the mouse-specific neuronal signature
 
 ```{r}
 # Load the regulon
-data(interferon_regulon)
+data(mouse_neuronal_regulon)
 
 # Load the example expression matrix
-data(example_matrix)
+data(example_matrix_Mm)
 
 # Compute ADAR activity
-res <- IFNSignature(example_matrix, object = "bulk")
+res <- neuronalMmSignature(example_matrix_Mm, object = "bulk")
 ```
 
